@@ -15,7 +15,8 @@ using std::vector;
 
 int main() {
   uWS::Hub h;
-
+  // lane width in meters
+  double lane_width = 4.0; 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   vector<double> map_waypoints_x;
   vector<double> map_waypoints_y;
@@ -97,7 +98,14 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
-
+           double dist_inc = 0.5;
+           for (int i = 0; i < 50; ++i) {
+            double next_s = car_s + i+1*dist_inc;
+            double next_d = lane_width+lane_width/2;
+            
+            next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+            next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+           }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
