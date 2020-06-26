@@ -14,9 +14,14 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
+
+   // start in lane 1
+   int lane= 1;
+   // Have a reference velocity to target
+   double ref_vel = 0.0; //mph 
+
 int main() {
   uWS::Hub h;
-  // lane width in meters
   
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   vector<double> map_waypoints_x;
@@ -52,7 +57,7 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-
+	 
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
@@ -92,13 +97,9 @@ int main() {
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
 
-         // start in lane 1
-	 int lane = 1;
+         
+         
 
-	 // Have a reference velocity to target
-	 double ref_vel = 49.5; //mph 
-
-          
           //this help in transition
           int prev_size = previous_path_x.size();
 
@@ -126,15 +127,24 @@ int main() {
 
 	     check_car_s+=((double)prev_size*.02*check_speed);
              // check s value greaater than mine and s gap
-             if((check_car_s > car_s)&&((check_car_s-car_s) < 30))          
+             if((check_car_s > car_s)&&((check_car_s-car_s) < 30)) 
+             {         
                 // Do some logic here, lower ref vel so we dont crash into the car in front of us,
                 // could also flag to change lane
-                ref_vel = 29.5; //mph
+                //ref_vel = 29.5; //mph
                 too_close = true;
-	     {
-
 	     }
+
             }
+          }
+
+          // change velocity gradually on start or when the other car is close ahead
+          if(too_close)
+          {
+           ref_vel-=.224;
+          } else if(ref_vel < 49.5)
+          {
+           ref_vel+=.224;
           }
 
          // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
@@ -194,9 +204,9 @@ int main() {
            }
            */
            // In frenet add evenly spaced 30m points ahead of the starting reference
-           vector<double> next_wpt0 = getXY(car_s+30,(4+2*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
-           vector<double> next_wpt1 = getXY(car_s+60,(4+2*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
-           vector<double> next_wpt2 = getXY(car_s+90,(4+2*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
+           vector<double> next_wpt0 = getXY(car_s+30,(2+4*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
+           vector<double> next_wpt1 = getXY(car_s+60,(2+4*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
+           vector<double> next_wpt2 = getXY(car_s+90,(2+4*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
 
            ptsx.push_back(next_wpt0[0]);
            ptsx.push_back(next_wpt1[0]);
