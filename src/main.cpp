@@ -19,6 +19,8 @@ using std::vector;
    int lane= 1;
    // Have a reference velocity to target
    double ref_vel = 0.0; //mph 
+   double speed_limit = 49.5; 
+   double speed_change =.224;
 
 int main() {
   uWS::Hub h;
@@ -96,63 +98,168 @@ int main() {
           // Sensor Fusion Data, a list of all other cars on the same side 
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
-
-         
-         
-
-          //this help in transition
+           
           int prev_size = previous_path_x.size();
-
-
-
           // sensor fusion
           if(prev_size > 0)
           {
 	     car_s = end_path_s;
           }
-          
-          bool too_close = false;
 
+          bool car_right_close_ahead = false;
+          bool car_right_close_behind = false;
+          bool car_left_close_ahead = false;
+          bool car_left_close_behind = false;   
+          bool car_middle_close_ahead = false;
+          bool car_middle_close_behind = false;
+          bool slow_car_ahead = false;
+          double distance_left_ahead;
+          double distance_right_ahead;
+          double distance_left_behind;
+          double distance_right_behind;
+          double distance_middle_ahead;
+          
           // find ref_V to use
           for(int i=0; i<sensor_fusion.size();i++)
 	  {
-            // car is in my lane
+            
             float d = sensor_fusion[i][6];
-            if(d<(2+4*lane+2) && d>(2+4*lane-2))
-            {
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx*vx+vy*vy);
-              double check_car_s = sensor_fusion[i][5];
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double check_speed = sqrt(vx*vx+vy*vy);
+            double check_car_s = sensor_fusion[i][5];
 
-	     check_car_s+=((double)prev_size*.02*check_speed);
-             // check s value greaater than mine and s gap
-             if((check_car_s > car_s)&&((check_car_s-car_s) < 30)) 
-             {         
-                // Do some logic here, lower ref vel so we dont crash into the car in front of us,
-                // could also flag to change lane
-                //ref_vel = 29.5; //mph
-                too_close = true;
-                
-		if(lane > 0)
+            // car longitudinal distance
+	    check_car_s+=((double)prev_size*.02*check_speed);
+
+             // Check if there is car  in my lane and is slow
+             if(d<(2+4*lane+2) && d>(2+4*lane-2))
+             {
+		if((check_car_s > car_s)&&((check_car_s-car_s) < 30)) 
                 {
-                  lane=0;
-		}
+		    slow_car_ahead = true;
+                    }
+             }
+
+
+               // if the slow car is in the middle lane, check the distance of other cars in the left and righ lanes
+               // to see if it is safe to change lane to left or right lane
+		if(lane == 1){
+
+                  // check left lane  if there is car within 30 meters ahead
+                  if(d >0 && d<4){
+                     
+                     if((car_s+20) > check_car_s)
+                     {
+                         car_left_close_ahead = true;
+		     } 
+                  }
+                  
+
+                   // check left lane  if there is car within 30 meters behind
+                  if(d >0 && d<4){
+                     
+                     if((car_s-20) < check_car_s)
+                     {
+                        car_left_close_behind = true;
+                     } 
+                  
+                  }
+
+                 
+                  //check rigt lane  if there is car within 30 meters ahead
+                  if(d >8 && d<12){
+                     if((car_s+20) > check_car_s)
+                     {
+                        car_right_close_ahead = true;
+                     }
+                  
+                  }
+
+               //check rigt lane  if there is car within 30 meters behind
+                  if(d >8 && d<12){
+                      if((car_s-20) < check_car_s)
+                      {
+                          car_right_close_behind = true;
+                      }
+                  
+                  }
+             }
+              // if the slow car is the in left or rigt lane, check the distance of other cars in the middle lane
+             // to see if is safe to change lane to middle lane
+             else
+             {
+		     //check middle lane  if there is car within 30 meters behind
+                     if(d >4 && d<8){
+                         if((car_s+20) > check_car_s)
+                         {
+                           car_middle_close_ahead = true;
+                         } 
+                     }
+
+                     //check middle lane  if there is car within 30 meters behind
+                     if(d >4 && d<8){
+                        if((car_s-20) < check_car_s)
+                        {
+                          car_middle_close_behind = true;
+                        } 
+                     }
+
+              } 
+             
+      
+         } 
+         
+          
+        if(slow_car_ahead)
+        {
+           
+             if(lane==1)
+             {
+               // Change to left lane if it is safe from the middle lane
+               if(!car_left_close_ahead ||!car_left_close_behind){
+                  lane--;
+                  std::cout <<"Change lane to left: " << " lane number: " <<lane << std::endl;
+                   
+               } 
+               // Change to right lane if it is safe from the middle lane
+               else if(!car_right_close_ahead ||!car_right_close_behind){
+                 lane++;
+                 std::cout <<" Change lane to right: "<<" lane number: " <<lane << std::endl;
+                 
+               }
+            
+               // if both left and right lanes are not safe, keep lane and slow down
+               else if ((car_left_close_ahead ||car_left_close_behind) && (car_right_close_ahead || car_right_close_behind)){
+                 ref_vel-=speed_change*2;
+               }
+             } 
+             else
+             { 
+               if(!car_middle_close_ahead || !car_middle_close_behind)
+               {
+                 lane = 1;
+                 std::cout <<"Change lane to middle:"<<" lane number: " <<lane << std::endl;
                 
-	     }
+               } 
+               else
+               {
+                  // decrease velocity gradually when the other car is close ahead
+                 ref_vel-=speed_change*2;
+               }
+             }
 
-            }
-          }
+          } //slow
+        else if(ref_vel < speed_limit)
+        {
+              // increase velocity gradually on start or when the other car is far ahead
+             ref_vel+=speed_change*2;
 
-          // change velocity gradually on start or when the other car is close ahead
-          if(too_close)
-          {
-           ref_vel-=.224;
-          } else if(ref_vel < 49.5)
-          {
-           ref_vel+=.224;
-          }
+        }
 
+           
+	 
+               
          // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
          // later we will interpolate these waypoint with a spline and fill it in with more points that control speed
           vector<double> ptsx;
@@ -197,18 +304,7 @@ int main() {
            *   sequentially every .02 seconds
            */
 
-           /**
-           double dist_inc = 0.5;
-           for (int i = 0; i < 50; ++i) {
-            //next longitudinal distance
-            double next_s = car_s + i+1*dist_inc;
-            // middle of the center lane
-            double next_d =6;
-            vector<double> xy = getXY(next_s,next_d,map_waypoints_s, map_waypoints_x,map_waypoints_y );
-            next_x_vals.push_back(xy[0]);
-            next_y_vals.push_back(xy[1]);
-           }
-           */
+           
            // In frenet add evenly spaced 30m points ahead of the starting reference
            vector<double> next_wpt0 = getXY(car_s+30,(2+4*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
            vector<double> next_wpt1 = getXY(car_s+60,(2+4*lane),map_waypoints_s, map_waypoints_x,map_waypoints_y);
@@ -277,7 +373,6 @@ int main() {
   	   next_x_vals.push_back(x_point);
            next_y_vals.push_back(y_point);
           } 
-
           json msgJson;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
